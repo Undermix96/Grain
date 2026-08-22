@@ -1,0 +1,312 @@
+/* ---------------------------------------------------------------------
+   Theme: dark, minimal, elegant. A single desaturated sage/petrol green
+   accent is used sparingly, only for hover/active/focus states — see
+   AGENTS.md for the rationale. Photos are always the visual focus.
+   --------------------------------------------------------------------- */
+
+:root {
+  --color-bg: #0b0b0a;
+  --color-bg-elevated: #131311;
+  --color-border: rgba(255, 255, 255, 0.08);
+
+  --color-text: #ececE6;
+  --color-text-secondary: #9a9890;
+  --color-text-tertiary: #6b6a63;
+
+  --color-accent: #6b9080;
+  --color-accent-hover: #85a894;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+
+  --header-height: 60px;
+  --gallery-gap: 14px;
+  --radius: 6px;
+
+  --transition-fast: 150ms ease;
+  --transition-medium: 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+/* Custom focus ring using the accent color, instead of the browser
+   default, without removing focus visibility for keyboard users. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------
+   Header
+   --------------------------------------------------------------------- */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  background: rgba(11, 11, 10, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.header__title {
+  font-size: 15px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+/* ---------------------------------------------------------------------
+   Gallery: CSS multi-column masonry.
+   On mobile this naturally collapses to a single column, i.e. a vertical
+   feed; on wider viewports it becomes a multi-column mosaic. This gives
+   us the "mobile-first feed / desktop mosaic" behavior from a single
+   layout mechanism, with no JS-computed positions needed.
+   --------------------------------------------------------------------- */
+
+.gallery {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: var(--gallery-gap);
+  column-count: 1;
+  column-gap: var(--gallery-gap);
+}
+
+@media (min-width: 640px) {
+  .gallery {
+    column-count: 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .gallery {
+    column-count: 3;
+  }
+}
+
+@media (min-width: 1440px) {
+  .gallery {
+    column-count: 4;
+  }
+}
+
+.photo-card {
+  break-inside: avoid;
+  margin-bottom: var(--gallery-gap);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--color-bg-elevated);
+  position: relative;
+  /* Reset <button> defaults: PhotoCard is a <button> for accessibility
+     (keyboard-focusable, semantically a control), but should look like a
+     plain grid tile, not a native button. */
+  display: block;
+  width: 100%;
+  border: none;
+  padding: 0;
+  margin-inline: 0;
+  font: inherit;
+  text-align: inherit;
+}
+
+.photo-card__image {
+  width: 100%;
+  height: auto;
+  display: block;
+  transition: transform var(--transition-medium);
+}
+
+.photo-card:hover .photo-card__image {
+  transform: scale(1.02);
+}
+
+.photo-card__date {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  font-size: 11px;
+  color: var(--color-text);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 3px 8px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  pointer-events: none;
+}
+
+.photo-card:hover .photo-card__date {
+  opacity: 1;
+}
+
+.gallery__sentinel {
+  height: 1px;
+}
+
+.gallery__status {
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  padding: 32px 0;
+}
+
+/* ---------------------------------------------------------------------
+   Lightbox
+   --------------------------------------------------------------------- */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(6, 6, 5, 0.96);
+  display: flex;
+  flex-direction: column;
+}
+
+.lightbox__topbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.lightbox__icon-button {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  border-radius: 999px;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.lightbox__icon-button:hover {
+  color: var(--color-text);
+  border-color: var(--color-accent);
+}
+
+.lightbox__stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-height: 0;
+  padding: 0 8px;
+}
+
+.lightbox__image {
+  max-width: 100%;
+  max-height: calc(100vh - var(--header-height) - 140px);
+  object-fit: contain;
+  border-radius: 2px;
+}
+
+.lightbox__nav-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.lightbox__nav-button:hover {
+  border-color: var(--color-accent);
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.lightbox__nav-button--prev {
+  left: 12px;
+}
+
+.lightbox__nav-button--next {
+  right: 12px;
+}
+
+@media (max-width: 640px) {
+  /* Arrow buttons give way to swipe gestures on touch devices. */
+  .lightbox__nav-button {
+    display: none;
+  }
+}
+
+.lightbox__footer {
+  padding: 14px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.lightbox__exif {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.lightbox__exif span {
+  white-space: nowrap;
+}
+
+.lightbox__date {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}

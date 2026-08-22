@@ -1,0 +1,82 @@
+services:
+  backend:
+    container_name: grain-backend
+    image: undermix/grain-backend:latest
+    restart: unless-stopped
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      # Source photos: read-only. Grain never writes to this folder and
+      # never serves files from it directly — see AGENTS.md §2/§3.
+      - ${PHOTOS_PATH:-./photos}:/data/photos:ro
+      # Generated thumbnail/medium/full versions. Safe to delete entirely;
+      # it gets rebuilt from the source photos on the next scan.
+      - ${CACHE_PATH:-./cache}:/data/cache
+    environment:
+      - TZ=Europe/Rome
+      - PHOTOS_PATH=/data/photos
+      - CACHE_PATH=/data/cache
+      - BACKEND_PORT=3001
+      - SCAN_CACHE_TTL_MS=${SCAN_CACHE_TTL_MS:-60000}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-200}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-1 minute}
+      - RATE_LIMIT_HEAVY_MAX=${RATE_LIMIT_HEAVY_MAX:-10}
+      - RATE_LIMIT_HEAVY_WINDOW=${RATE_LIMIT_HEAVY_WINDOW:-1 minute}
+    networks:
+      - grain
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # cpus: 1
+    # mem_limit: 1024mb
+    # # mem_reservation:
+    # memswap_limit: 1024mb
+    # # privileged:
+    # pull_policy:
+    # shm_size:
+    # user:
+
+
+  frontend:
+    container_name: grain-frontend
+    image: undermix/grain-frontend:latest
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    # ports:
+    #   - "${PORT:-8080}:80"
+    networks:
+      - grain
+      - proxy
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.grain.rule=Host(`grain.undermix.it`)'
+      - 'traefik.http.routers.grain.entrypoints=websecure'
+      - 'traefik.http.routers.grain.tls.certresolver=cf'
+      - 'traefik.http.services.grain.loadbalancer.server.port=80'
+      - 'traefik.docker.network=proxy'
+      - "homepage.group=Media"
+      - "homepage.name=Grain"
+      - "homepage.icon=camera.png"
+      - "homepage.href=https://grain.undermix.it"
+      - "homepage.description=Grain"
+      - "homepage.server=my-docker-host"
+    # cpus: 1
+    # mem_limit: 1024mb
+    # # mem_reservation:
+    # memswap_limit: 1024mb
+    # privileged:
+    # pull_policy:
+    # shm_size:
+    # user:
+
+networks:
+  grain:
+    driver: bridge
+  proxy:
+    external: true

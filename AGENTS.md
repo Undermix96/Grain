@@ -158,6 +158,7 @@ Two Docker containers, no separate orchestrator:
 | GPS/location data | Never shown in the UI, never present in any served version of the file (thumbnail, medium, full) | Sensitive data; must be removed regardless of the channel through which the file leaves the server, including the "original" download. |
 | Image pipeline | Automatic generation of 3 versions per photo: thumbnail (grid), medium (viewing), full (download, still GPS-stripped) | Serving the raw camera file would be too heavy and would risk exposing sensitive metadata. |
 | Served image format | WebP with fallback | Reduced size, broad support in modern browsers. |
+| Color space / profile handling | `thumbnail` and `medium` are converted to sRGB (sharp's default when metadata is stripped); `full` (the download version) keeps the source file's original ICC color profile via `sharp`'s `.keepIccProfile()`, independent from EXIF/GPS stripping | Ensures accurate, consistent colors in the browser for on-site viewing, while letting a photographer working in a wide-gamut profile (Adobe RGB, ProPhoto RGB) download a file that preserves their original color profile — without reintroducing GPS or other EXIF data, which are stripped through a completely separate mechanism. |
 | Image processing library | `sharp` | Performant, natively supports resizing and EXIF metadata manipulation/removal, no problematic native dependencies in Docker. |
 | Original-version download | Allowed, but always the GPS-stripped "full" version, never the raw source file | The user can save the photo at high resolution without exposing the shot's location data. |
 | Authentication | None, fully public site | Explicit choice for this project; the architecture (API separated from the frontend) remains compatible with adding an auth layer in the future without a refactor. |
@@ -184,22 +185,40 @@ grain/
 ├── .gitignore
 ├── .gitattributes
 ├── .env.example
-├── docker-compose.yml                 # deployment
-├── docker-compose.build.yml           # image build
+├── docker-compose.yml                 # deployment: pulls pre-built images
+├── docker-compose.build.yml           # builds and tags both images locally
 ├── backend/
 │   ├── Dockerfile
 │   ├── package.json
 │   └── src/
-│       └── index.js                   # scanning, metadata parsing, image pipeline, API, rate limiting
+│       ├── index.js                   # Fastify server, API routes, rate limiting
+│       ├── config.js                  # environment variable configuration
+│       ├── filename.js                # filename parsing (date/album/title)
+│       ├── exif.js                    # display EXIF extraction (never GPS)
+│       ├── imagePipeline.js           # thumbnail/medium/full generation, GPS stripping
+│       └── scanner.js                 # photo folder scanning with TTL cache
 └── frontend/
     ├── Dockerfile
     ├── package.json
     ├── nginx.conf
+    ├── vite.config.js
+    ├── index.html
     └── src/
-        ├── components/                # Header, Gallery, PhotoCard, Lightbox
-        ├── stores/
+        ├── main.jsx                    # entry point, QueryClientProvider setup
+        ├── App.jsx
+        ├── index.css                   # theme variables, dark minimal styles
+        ├── api/
+        │   └── photos.js                # backend API client
         ├── hooks/
-        └── App.jsx
+        │   ├── usePhotos.js             # TanStack Query infinite query
+        │   └── useInfiniteScrollTrigger.js
+        ├── stores/
+        │   └── lightboxStore.js         # Zustand: lightbox open/close state
+        └── components/
+            ├── Header.jsx
+            ├── Gallery.jsx              # responsive masonry grid
+            ├── PhotoCard.jsx
+            └── Lightbox.jsx             # fullscreen viewer
 ```
 
 Note: this structure is planned based on the decisions made so far; it will
@@ -210,10 +229,24 @@ be created, and adjusted if needed, during implementation.
 ## 5. Progress status
 
 - [x] Architectural and technical decisions defined (this document)
-- [ ] Base repository structure (`.gitignore`, `LICENSE`, `README.md`, `.env.example`)
-- [ ] `backend/src/index.js` — folder scanning, filename parsing, EXIF extraction
-- [ ] Image pipeline (thumbnail/medium/full, GPS removal) with `sharp`
-- [ ] API rate limiting
-- [ ] `docker-compose.yml`, `docker-compose.build.yml`, backend/frontend Dockerfiles
-- [ ] Frontend: gallery layout (responsive masonry/bento), lightbox, dark theme
-- [ ] End-to-end pipeline test
+- [x] Base repository structure (`.gitignore`, `LICENSE`, `README.md`, `.env.example`)
+- [x] `backend/src/filename.js` — filename parsing (date/album/title), with fallbacks
+- [x] `backend/src/imagePipeline.js` — thumbnail/medium/full generation with `sharp`, GPS/EXIF stripping, sRGB conversion for displayed versions, ICC profile preservation for the download version
+- [x] `backend/src/exif.js` — display EXIF extraction (camera, lens, focal length, aperture, shutter speed, ISO); GPS is never parsed
+- [x] `backend/src/scanner.js` — folder scanning with TTL cache, filename + EXIF enrichment, manual refresh support
+- [x] `backend/src/index.js` — Fastify server: `GET /api/photos` (paginated), `GET /api/photos/:id/:version`, `POST /api/refresh`, `GET /api/health`, rate limiting (general + heavy endpoints)
+- [x] `backend/package.json` — dependencies (Fastify 5, sharp, exifr, @fastify/rate-limit, @fastify/cors)
+- [x] Manual end-to-end backend test (photo listing, image serving for all versions, 404/400 handling, refresh, rate limiting) — passed
+- [x] `backend/Dockerfile`
+- [x] Frontend scaffold: Vite + React (JavaScript, `@vitejs/plugin-react-swc`), dark minimal theme with a single sage/petrol accent color
+- [x] `frontend/src/components/Gallery.jsx` — responsive CSS multi-column masonry (single column on mobile, up to 4 columns on desktop), infinite scroll via `IntersectionObserver`
+- [x] `frontend/src/components/PhotoCard.jsx`, `Header.jsx` — grid item and sticky minimal header
+- [x] `frontend/src/components/Lightbox.jsx` — fullscreen viewer with keyboard navigation (arrows/Escape), swipe navigation on touch devices, EXIF display, download of the GPS-stripped "full" version, animated with `motion`
+- [x] `frontend/src/stores/lightboxStore.js` (Zustand), `frontend/src/hooks/usePhotos.js` (TanStack Query infinite query)
+- [x] `frontend/Dockerfile`, `frontend/nginx.conf` — multi-stage build served by Nginx, proxies `/api/` to the backend container
+- [x] Frontend build verified (`vite build`, no errors); dev server verified end-to-end against a running backend instance (API proxying and image serving confirmed via HTTP requests). Full in-browser interaction (click/keyboard/swipe on the rendered page) could not be verified in this environment due to no network access for downloading a headless browser — worth a manual smoke test by the maintainer before relying on it.
+- [x] `docker-compose.yml` — deployment: pulls pre-built images, mounts read-only photos volume and read/write cache volume, Traefik + homepage labels, backend healthcheck gating frontend startup
+- [x] `docker-compose.build.yml` — builds and tags both images locally
+- [x] `.env.example` updated with `CACHE_PATH` and `SCAN_CACHE_TTL_MS`, now covering every variable referenced by `docker-compose.yml`
+- [x] YAML syntax of both compose files validated
+- [ ] End-to-end test of the full Dockerized stack (`docker compose up`) — not runnable in this sandboxed environment (no Docker daemon available); recommended as a manual check by the maintainer before first production deploy
